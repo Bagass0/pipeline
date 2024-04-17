@@ -1,13 +1,9 @@
+// app.js
 const express = require('express');
 const app = express();
 const port = 3000;
 
-// Liste des URL publiques
-let publicUrls = [
-    '/url1',
-    '/url2',
-    '/login'
-];
+const { getRegisteredUsers } = require('./inMemoryUserRepository');
 
 // Middleware pour afficher les en-têtes de requête
 app.use((req, res, next) => {
@@ -16,6 +12,8 @@ app.use((req, res, next) => {
 });
 
 // Middleware de firewall
+const authenticatedUsers = {}; // Objet pour stocker les utilisateurs authentifiés
+
 function firewall(req, res, next) {
     const requestedUrl = req.url;
 
@@ -24,7 +22,7 @@ function firewall(req, res, next) {
     } else { // Si l'URL est restreinte
         // Vérifier si le token est fourni dans les en-têtes de la requête
         const token = req.headers['authorization'];
-        if (token && token === 'Bearer 42') { // Vérifier si le token est correct (ici codé en dur)
+        if (token && authenticatedUsers[token]) { // Vérifier si le token est valide
             next(); // Transférer la requête au endpoint
         } else {
             // Renvoyer une erreur 403 si le token est incorrect ou non fourni
@@ -38,9 +36,20 @@ app.use(firewall);
 
 // Route de login
 app.post('/login', (req, res) => {
-    // Générer un token aléatoire (à améliorer pour une utilisation en production)
-    const token = Math.random().toString(36).substring(2);
-    res.json({ token: token }); // Renvoyer le token au client
+    const { email, password } = req.body;
+    const registeredUsers = getRegisteredUsers();
+    
+    // Vérifier les identifiants de l'utilisateur
+    const user = registeredUsers.find(user => user.email === email && user.password === password);
+    if (user) {
+        // Générer un token aléatoire (à améliorer pour une utilisation en production)
+        const token = Math.random().toString(36).substring(2);
+        authenticatedUsers[token] = { email: user.email }; // Stocker l'utilisateur authentifié
+        res.json({ token: token }); // Renvoyer le token au client
+    } else {
+        // Renvoyer une erreur 403 si les identifiants sont invalides
+        res.status(403).send("Identifiants invalides");
+    }
 });
 
 // Routes publiques
